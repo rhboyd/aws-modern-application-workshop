@@ -102,7 +102,7 @@ One of the biggest benefits from AWS CDK is the principal of reusability - Being
 If you haven't already, install the AWS CDK in your Cloud9 environment using the following command:
 
 ```sh
-npm install -g aws-cdk
+npm install -g aws-cdk@1.29.0
 ```
 
 Run the following command to see the version number of the CDK:
@@ -126,52 +126,63 @@ In the `cdk` folder, lets now initialize a CDK app, where LANGUAGE is one of the
 For the purposes of this workshop we will use TypeScript as our language:
 
 ```sh
-cdk init app --language typescript
+cdk init app --language python
 ```
 
+<!-- Change package structure -->
 This command has now initialised a new CDK app in your `cdk` folder.  Part of the initialisation process also establishes the given directory as a new git repository.
 
-Notice the standard structure of an AWS CDK app, that consists of a `bin` folder and a `lib` folder.
+Notice the standard structure of a Python CDK app, that consists of a `cdk` folder and an `app.py` Python file.
 
-* The `bin` folder is where we will define the entry point for the CDK app.
-* The `lib` folder is where we will define all our workshop infrastructure components.
-
-> **Note:** please remove the `cdk/lib/cdk-stack.ts` and `cdk/test/cdk.test.ts` files as we will be creating our own stack files.
+* The `cdk` folder is where we will define all our workshop infrastructure components.
+* The `app.py` file is the entry point for our app.
 
 ## Creating the Mythical Mysfits Website
 
 Now, let's define the infrastructure needed to host our website.  
 
-Create a new file called `web-application-stack.ts` in the `lib` folder, and define the skeleton class structure by writing/copying the following code:
+Note: the skeleton class structure is present in `cdk/cdk_stack.py`:
 
-```typescript
-import cdk = require('@aws-cdk/core');
+```python
+from aws_cdk import core
 
-export class WebApplicationStack extends cdk.Stack {
-  constructor(app: cdk.App, id: string) {
-    super(app, id);
 
-    // The code that defines your stack goes here
-  }
-}
+class CdkStack(core.Stack):
+
+    def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
+        super().__init__(scope, id, **kwargs)
+
+        # The code that defines your stack goes here
 ```
 
-Add an import statement for the `WebApplicationStack` to the `bin/cdk.ts` file.
+<!-- Update description for app.py-->
+Update the name of the CDK Stack in `app.py` to something a bit more descriptive.
 
 ```typescript
-#!/usr/bin/env node
-import 'source-map-support/register';
-import cdk = require('@aws-cdk/core');
-import { WebApplicationStack } from "../lib/web-application-stack";
+#!/usr/bin/env python3
 
-const app = new cdk.App();
-new WebApplicationStack(app, "MythicalMysfits-Website");
+from aws_cdk import core
+
+from cdk.cdk_stack import CdkStack
+
+
+app = core.App()
+CdkStack(app, "MythicalMysfits-Website")
+
+app.synth()
 ```
 
-Now we have the required files, let's go through defining the S3 and CloudFront infrastructure.  But before we do that, we must add references to the appropriate npm packages that we will be using. Execute the following command from the `workshop/cdk/` directory:
+Now we have the required files, let's go through defining the S3 and CloudFront infrastructure.  But before we do that, we must add references to the appropriate packages that we will be using. update the `seup.py` at the root of the project to include these dependencies:
 
-```sh
-npm install --save-dev @types/node @aws-cdk/aws-cloudfront @aws-cdk/aws-iam @aws-cdk/aws-s3 @aws-cdk/aws-s3-deployment
+```python
+    install_requires=[
+        "aws-cdk.core==1.29.0",
+        "aws-cdk.aws-cloudfront==1.29.0",
+        "aws-cdk.aws-iam==1.29.0",
+        "aws-cdk.aws-s3==1.29.0",
+        "aws-cdk.aws-s3-deployment==1.29.0"
+    ],
+
 ```
 
 ### Copy the Web Application Code
@@ -193,21 +204,25 @@ cp -r source/module-1/web/* ./web
 
 Ensure the webAppRoot variable points to the `~/environment/workshop/web` directory. In the `web-application-stack.ts` file, we want to import the `path` module, which we will use to resolve the path to our website folder:
 
+<!-- TODO: Switch to Python -->
 ```typescript
 import path = require('path');
 ```
 
 Next, import the AWS CDK libraries we will be using.
 
-```typescript
-import s3 = require('@aws-cdk/aws-s3');
-import cloudfront = require('@aws-cdk/aws-cloudfront');
-import iam = require('@aws-cdk/aws-iam');
-import s3deploy = require('@aws-cdk/aws-s3-deployment');
+```python
+from aws_cdk import (
+    core,
+    aws_s3 as s3,
+    aws_cloudfront as cloudfront,
+    aws_iam as iam,
+    aws_s3_deploy as s3deploy
+)
 ```
 
-Now, within the `web-application-stack.ts` constructor, write the folllowing code.
-
+Now, within the `cdk_stack.py` constructor, write the folllowing code.
+<!-- TODO -->
 ```typescript
 const webAppRoot = path.resolve(__dirname, '..', '..', 'web');
 ```
@@ -216,10 +231,8 @@ const webAppRoot = path.resolve(__dirname, '..', '..', 'web');
 
 We are going to define our S3 bucket and define the web index document as 'index.html'
 
-```typescript
-const bucket = new s3.Bucket(this, "Bucket", {
-  websiteIndexDocument: "index.html"
-});
+```python
+bucket: s3.bucket = s3.bucket(self, "Bucket", websiteIndexDocument="index.html")
 ```
 
 ### Restrict access to the S3 bucket
@@ -228,71 +241,62 @@ We want to restrict access to our S3 bucket, and only allow access from the Clou
 
 Within the `web-application-stack.ts` constructor write the folllowing code:
 
-```typescript
-// Obtain the cloudfront origin access identity so that the s3 bucket may be restricted to it.
-const origin = new cloudfront.OriginAccessIdentity(this, "BucketOrigin", {
-    comment: "mythical-mysfits"
-});
+```python
+        // Obtain the cloudfront origin access identity so that the s3 bucket may be restricted to it.
+        origin = cloudfront.OriginAccessIdentity(self, "BucketOrigin", comment="mythical-mysfits")
 
-// Restrict the S3 bucket via a bucket policy that only allows our CloudFront distribution
-bucket.grantRead(new iam.CanonicalUserPrincipal(
-  origin.cloudFrontOriginAccessIdentityS3CanonicalUserId
-));
+        // Restrict the S3 bucket via a bucket policy that only allows our CloudFront distribution
+        bucket.grantRead(iam.CanonicalUserPrincipal(origin.cloudFrontOriginAccessIdentityS3CanonicalUserId))
 ```
 
 ### CloudFront Distribution
 
 Next, Write the definition for a new CloudFront web distribution:
 
-```typescript
-const cdn = new cloudfront.CloudFrontWebDistribution(this, "CloudFront", {
-  viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.ALLOW_ALL,
-  priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
-  originConfigs: [
-    {
-      behaviors: [
-        {
-          isDefaultBehavior: true,
-          maxTtl: undefined,
-          allowedMethods:
-            cloudfront.CloudFrontAllowedMethods.GET_HEAD_OPTIONS
-        }
-      ],
-      originPath: `/web`,
-      s3OriginSource: {
-        s3BucketSource: bucket,
-        originAccessIdentity: origin
-      }
-    }
-  ]
-});
+```python
+        cdn = cloudfront.CloudFrontWebDistribution(
+            self,
+            "CloudFront",
+            viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.ALLOW_ALL,
+            price_class=cloudfront.PriceClass.PRICE_CLASS_ALL,
+            origin_configs=[cloudfront.SourceConfiguration(
+                s3_origin_source=cloudfront.S3OriginConfig(
+                    s3_bucket_source=bucket,
+                    origin_access_identity=origin
+                ),
+                behaviors=[cloudfront.Behavior(is_default_behavior=True, allowed_methods=cloudfront.CloudFrontAllowedMethods.GET_HEAD_OPTIONS)],
+                origin_path="/web"
+            )]
+        )
 ```
 
 ### Upload the website content to the S3 bucket
 
 Now we want to use a handy CDK helper that takes the defined source directory, compresses it, and uploads it to the destination s3 bucket:
 
-```typescript
-new s3deploy.BucketDeployment(this, "DeployWebsite", {
-  sources: [
-    s3deploy.Source.asset(webAppRoot)
-  ],
-  destinationKeyPrefix: "web/",
-  destinationBucket: bucket,
-  distribution: cdn,
-  retainOnDelete: false
-});
+```python
+        s3deploy.BucketDeployment(
+            self,
+            "DeployWebsite",
+            sources=[s3deploy.Source.asset('../web')],
+            destination_key_prefix= "web/",
+            destination_bucket=bucket,
+            distribution=cdn,
+            retain_on_delete=False
+        )
 ```
 
 ### CloudFormation Outputs
 
 Finally, we want to define a cloudformation output for the domain name assigned to our CloudFront distribution:
 
-```typescript
-new cdk.CfnOutput(this, "CloudFrontURL", {
-  description: "The CloudFront distribution URL",
-  value: "https://" + cdn.domainName
-});
+```python
+        core.CfnOutput(
+            self,
+            "CloudFrontUrl",
+            description="The CloudFront distribution URL",
+            value="https://{}".format(cdn.domain_name)
+        )
 ```
 
 With that, we have completed writing the components of our module 1 stack.  Your `cdk` folder should resemble like the reference implementation, which can be found in the `workshop/source/module-1/cdk` directory.
