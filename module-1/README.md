@@ -126,7 +126,7 @@ In the `cdk` folder, lets now initialize a CDK app, where LANGUAGE is one of the
 For the purposes of this workshop we will use TypeScript as our language:
 
 ```sh
-cdk init app --language python
+cdk init app --language python sample-app
 ```
 
 <!-- Change package structure -->
@@ -136,10 +136,14 @@ Notice the standard structure of a Python CDK app, that consists of a `cdk` fold
 
 * The `cdk` folder is where we will define all our workshop infrastructure components.
 * The `app.py` file is the entry point for our app.
+* 
+
+<!-- TODO: Setup venv -->
 
 ## Creating the Mythical Mysfits Website
 
-Now, let's define the infrastructure needed to host our website.  
+Now, let's define the infrastructure needed to host our website.
+<!-- TODO: Update this to show the original template and what to update-->
 
 Note: the skeleton class structure is present in `cdk/cdk_stack.py`:
 
@@ -147,7 +151,7 @@ Note: the skeleton class structure is present in `cdk/cdk_stack.py`:
 from aws_cdk import core
 
 
-class CdkStack(core.Stack):
+class WebApplicationStack(core.Stack):
 
     def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
@@ -158,21 +162,20 @@ class CdkStack(core.Stack):
 <!-- Update description for app.py-->
 Update the name of the CDK Stack in `app.py` to something a bit more descriptive.
 
-```typescript
+```python
 #!/usr/bin/env python3
 
 from aws_cdk import core
 
-from cdk.cdk_stack import CdkStack
-
+from cdk.web_application_stack import WebApplicationStack
 
 app = core.App()
-CdkStack(app, "MythicalMysfits-Website")
+WebApplicationStack(app, "MythicalMysfits-Website")
 
 app.synth()
 ```
 
-Now we have the required files, let's go through defining the S3 and CloudFront infrastructure.  But before we do that, we must add references to the appropriate packages that we will be using. update the `seup.py` at the root of the project to include these dependencies:
+Now we have the required files, let's go through defining the S3 and CloudFront infrastructure.  But before we do that, we must add references to the appropriate packages that we will be using. update the `setup.py` at the root of the project to include these dependencies:
 
 ```python
     install_requires=[
@@ -202,14 +205,7 @@ cp -r source/module-1/web/* ./web
 
 ### Define the Website root directory
 
-Ensure the webAppRoot variable points to the `~/environment/workshop/web` directory. In the `web-application-stack.ts` file, we want to import the `path` module, which we will use to resolve the path to our website folder:
-
-<!-- TODO: Switch to Python -->
-```typescript
-import path = require('path');
-```
-
-Next, import the AWS CDK libraries we will be using.
+Ensure the webAppRoot variable points to the `~/environment/workshop/web` directory. In the `web_application_stack.py` file, import the AWS CDK libraries we will be using.
 
 ```python
 from aws_cdk import (
@@ -221,32 +217,29 @@ from aws_cdk import (
 )
 ```
 
-Now, within the `cdk_stack.py` constructor, write the folllowing code.
-<!-- TODO -->
-```typescript
-const webAppRoot = path.resolve(__dirname, '..', '..', 'web');
-```
+Now, within the `web_application_stack.py` constructor, write the folllowing code:
 
 ### Define the S3 bucket
 
 We are going to define our S3 bucket and define the web index document as 'index.html'
 
 ```python
-bucket: s3.bucket = s3.bucket(self, "Bucket", websiteIndexDocument="index.html")
+bucket: s3.Bucket = s3.Bucket(self, "Bucket", website_index_document="index.html")
 ```
 
 ### Restrict access to the S3 bucket
 
 We want to restrict access to our S3 bucket, and only allow access from the CloudFront distribution. We'll use an [Origin Access Identity (OAI)](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html) to allow CloudFront to access and serve files to our users.
 
-Within the `web-application-stack.ts` constructor write the folllowing code:
+Within the `web_application_stack.py` constructor write the folllowing code: <!-- after the bucket definition -->
 
 ```python
-        // Obtain the cloudfront origin access identity so that the s3 bucket may be restricted to it.
+        # Obtain the cloudfront origin access identity so that the s3 bucket may be restricted to it.
         origin = cloudfront.OriginAccessIdentity(self, "BucketOrigin", comment="mythical-mysfits")
 
-        // Restrict the S3 bucket via a bucket policy that only allows our CloudFront distribution
-        bucket.grantRead(iam.CanonicalUserPrincipal(origin.cloudFrontOriginAccessIdentityS3CanonicalUserId))
+        # Restrict the S3 bucket via a bucket policy that only allows our CloudFront distribution
+        bucket.grant_read(iam.CanonicalUserPrincipal(origin.cloud_front_origin_access_identity_s3_canonical_user_id()))
+        
 ```
 
 ### CloudFront Distribution

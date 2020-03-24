@@ -39,67 +39,83 @@ The AWS CDK application you are about to write will create the following resourc
 * [**A Security Group**](https://docs.aws.amazon.com/vpc/latest/userguide/VPC_SecurityGroups.html) - Allows your docker containers to receive traffic on port 8080 from the Internet through the Network Load Balancer.
 * [**IAM Roles**](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html) - Identity and Access Management Roles are created. These will be used throughout the workshop to give AWS services or resources you create access to other AWS services like DynamoDB, S3, and more.
 
-In the `workshop/cdk` directory, create a new file in the `lib` folder called `network-stack.ts`.
+In the `workshop/cdk` directory, create a new file in the `cdk` folder called `network_stack.py`.
 
 ```sh
 cd ~/environment/workshop/cdk
-touch lib/network-stack.ts
+touch cdk/network_stack.py
 ```
 
 Within the file you just created, define the skeleton CDK Stack structure, naming the class `NetworkStack`:
 
-```typescript
-import cdk = require('@aws-cdk/core');
+```python
+from aws_cdk import (
+    core
+)
 
-export class NetworkStack extends cdk.Stack {
-  constructor(scope: cdk.Construct, id:string) {
-    super(scope, id);
+class NetworkStack(core.Stack):
 
-    // The code that defines your stack goes here
-  }
-}
+    def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
+        super().__init__(scope, id, **kwargs)
 ```
 
-Then, add the NetworkStack to our CDK application definition in `bin/cdk.ts`, when done, your `bin/cdk.ts` should look like this:
+Then, add the NetworkStack to our CDK application definition in `app.py`, when done, your `app.py` should look like this:
 
-```typescript
-#!/usr/bin/env node
-import 'source-map-support/register';
-import cdk = require('@aws-cdk/core');
-import { WebApplicationStack } from "../lib/web-application-stack";
-import { NetworkStack } from "../lib/network-stack";
+```python
+#!/usr/bin/env python3
 
-const app = new cdk.App();
-new WebApplicationStack(app, "MythicalMysfits-Website");
-const networkStack = new NetworkStack(app, "MythicalMysfits-Network");
+from aws_cdk import core
+
+from cdk.web_application_stack import WebApplicationStack
+from cdk.network_stack import NetworkStack
+
+
+app = core.App()
+WebApplicationStack(app, "MythicalMysfits-Website")
+networkstack = NetworkStack(app, "MythicalMysfits-Network")
+
+app.synth()
 ```
 
 Now, we can define our VPC using AWS CDK.  Once again, AWS CDK makes the implementation of AWS Components and Services a breeze by providing you with high level abstractions.  Let's demonstrate this now.
 
-First, we need to install the CDK NPM packages for Amazon EC2 and AWS IAM:
+First, we need to install the CDK modules for Amazon EC2 and AWS IAM (we already have IAM installed from module-1):
 
-```sh
-npm install --save-dev @aws-cdk/aws-ec2 @aws-cdk/aws-iam
+update `setup.py` to include these dependencies.
+
+```json
+    install_requires=[
+        "aws-cdk.core==1.29.0",
+        "aws-cdk.aws-cloudfront==1.29.0",
+        "aws-cdk.aws-iam==1.29.0",
+        "aws-cdk.aws-s3==1.29.0",
+        "aws-cdk.aws-s3-deployment==1.29.0",
+        "aws-cdk.aws-ec2==1.29.0"
+    ],
 ```
 
-Within the `network-stack.ts` file, define the following VPC construct:
+Within the `network_stack.py` file, define the following VPC construct:
 
-```typescript
-import cdk = require('@aws-cdk/core');
-import ec2 = require("@aws-cdk/aws-ec2");
-import iam = require("@aws-cdk/aws-iam");
+```python
+from aws_cdk import (
+    core,
+    aws_ec2 as ec2,
+    aws_iam as iam
+)
 
-export class NetworkStack extends cdk.Stack {
-  public readonly vpc: ec2.Vpc;
+class NetworkStack(core.Stack):
 
-  constructor(scope: cdk.Construct, id:string) {
-    super(scope, id);
+    def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
+        super().__init__(scope, id, **kwargs)
 
-    this.vpc = new ec2.Vpc(this, "VPC");
-  }
-}
+        self.__vpc = ec2.Vpc(self, "VPC")
+
+    @property
+    def vpc(self) -> ec2.Vpc:
+        return self.__vpc
 ```
 
+<!-- TODO: Confirm this -->
 > **Note:** We are assigning the instance of our `ec2.Vpc` to a readonly property so that it may be referenced by other stacks.
 
 
@@ -111,7 +127,8 @@ cdk synth -o templates
 
 This command will generate the AWS CloudFormation template for the NetworkStack and place it in a folder called templates.  Open the generated file now and review the contents.  
 
-In the generated file, you will find that one line of code generated a huge amount of AWS CloudFormation, including:
+<!-- change this wording-->
+In the generated file, you will find that a single line of code generated a huge amount of JSON, including:
 
 * A VPC construct;
 * Public, private and isolated subnets in each of the availability zones in your region
@@ -120,16 +137,18 @@ In the generated file, you will find that one line of code generated a huge amou
 
 But lets now customise the VPC we are creating by adding some property overrides.  Change your VPC definiton to reflect the following:
 
-```typescript
-this.vpc = new ec2.Vpc(this, "VPC", {
-  natGateways: 1,
-  maxAzs: 2
-});
+```python
+        self.__vpc = ec2.Vpc(
+            self,
+            "VPC",
+            nat_gateways=1,
+            max_azs=2
+        )
 ```
 
-Here we are defining the maximum number of NAT Gateways we want to establish and the maximum number of AZs we want to deploy to.
+Here we are defining the maximum number of NAT Gateways we want to establish and the maximum number of Availability Zones (AZs) we want to deploy to.
 
-> **Note:** once you've completed the changes above, compare your `network-stack.ts` file with the one in the `workshop/source/module-2/cdk/lib` folder and make sure it looks the same.
+> **Note:** once you've completed the changes above, compare your `network_stack.py` file with the one in the `workshop/source/module-2/cdk/cdk` folder and make sure it looks the same.
 
 Now, deploy your VPC using the following command:
 
@@ -183,6 +202,7 @@ docker run -p 8080:8080 $(aws sts get-caller-identity --query Account --output t
 
 As a result you will see docker reporting that your container is up and running locally:
 
+<!-- Double check this on Cloud9 -->
 ```
  * Running on http://0.0.0.0:8080/ (Press CTRL+C to quit)
 ```
@@ -201,69 +221,88 @@ When done testing the service you can stop it by pressing CTRL-c on PC or Mac.
 
 #### Create an Amazon Elastic Container Registry (ECR) repository
 
-With a successful test of our service locally, we're ready to create a container image repository in [Amazon Elastic Container Registry](https://aws.amazon.com/ecr/) (Amazon ECR) and push our image into it.  In order to create the registry using CDK, let's create a new file within the `lib` folder, this time called `ecr-stack.ts`.  
+With a successful test of our service locally, we're ready to create a container image repository in [Amazon Elastic Container Registry](https://aws.amazon.com/ecr/) (Amazon ECR) and push our image into it.  In order to create the registry using CDK, let's create a new file within the `cdk` folder, this time called `ecr_stack.py`.  
 ```sh
 cd ~/environment/workshop/cdk
-touch lib/ecr-stack.ts
+touch cdk/ecr_stack.py
 ```
 
 And again, as before, define the skeleton structure of a CDK Stack.
 
-```typescript
-import cdk = require('@aws-cdk/core');
+```python
+from aws_cdk import (
+    core
+)
 
-export class EcrStack extends cdk.Stack {
-  constructor(scope: cdk.Construct, id: string) {
-    super(scope, id);
+class EcrStack(core.Stack):
 
-    // The code that defines your stack goes here
-  }
-}
+    def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
+        super().__init__(scope, id, **kwargs)
 ```
 
-Then, add the ECRStack to our CDK application definition in `bin/cdk.ts`, as we have done before.  When done, your `bin/cdk.ts` should look like this;
+Then, add the ECRStack to our CDK application definition in `app.py`, as we have done before.  When done, your `app.py` should look like this;
 
-```typescript
-#!/usr/bin/env node
+```python
+#!/usr/bin/env python3
 
-import cdk = require('@aws-cdk/core');
-import "source-map-support/register";
-import { WebApplicationStack } from "../lib/web-application-stack";
-import { NetworkStack } from "../lib/network-stack";
-import { EcrStack } from "../lib/ecr-stack";
+from aws_cdk import core
 
-const app = new cdk.App();
-new WebApplicationStack(app, "MythicalMysfits-Website");
-const networkStack = new NetworkStack(app, "MythicalMysfits-Network");
-const ecrStack = new EcrStack(app, "MythicalMysfits-ECR");
+from cdk.web_application_stack import WebApplicationStack
+from cdk.network_stack import NetworkStack
+from cdk.ecr_stack import EcrStack
+
+
+app = core.App()
+WebApplicationStack(app, "MythicalMysfits-Website")
+networkstack = NetworkStack(app, "MythicalMysfits-Network")
+ecrStack = EcrStack(app, "MythicalMysfits-ECR")
+
+app.synth()
 ```
 
-Next, we need to install the CDK NPM packages for Amazon ECR:
+Next, we need to install the CDK modules for Amazon ECR:
 
+update `setup.py` to include these dependencies:
+
+```json
+    install_requires=[
+        "aws-cdk.core==1.29.0",
+        "aws-cdk.aws-cloudfront==1.29.0",
+        "aws-cdk.aws-iam==1.29.0",
+        "aws-cdk.aws-s3==1.29.0",
+        "aws-cdk.aws-s3-deployment==1.29.0",
+        "aws-cdk.aws-ec2==1.29.0",
+        "aws-cdk.aws-ecr==1.29.0"
+    ],
+```
+
+then run: 
 ```sh
-npm install --save-dev @aws-cdk/aws-ecr
+pip install -r requirements.txt
 ```
+from `~/environment/workshop/cdk`
 
-Then we add the definition of our ECR repository to the EcrStack as follows:
+update the contents of `~/environment/workshop/cdk/cdk/ecr_stack.py` to reflect these changes:
 
-Add this import statement after the `import cdk` statement on the first line.
+```python
+from aws_cdk import (
+    core,
+    aws_ecr as ecr
+)
 
-```typescript
-import ecr = require("@aws-cdk/aws-ecr");
-```
-Update your EcrStack to reflect the following:
+class EcrStack(core.Stack):
 
-```typescript
-export class EcrStack extends cdk.Stack {
-  public readonly ecrRepository: ecr.Repository;
-
-  constructor(scope: cdk.Construct, id: string) {
-    super(scope, id);
-    this.ecrRepository = new ecr.Repository(this, "Repository", {
-      repositoryName: "mythicalmysfits/service"
-    });
-  }
-}
+    def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
+        super().__init__(scope, id, **kwargs)
+        self.__ecr_repository = ecr.Repository(
+            self,
+            "Repository",
+            repository_name="mythicalmysfits/service"
+        )
+    
+    @property
+    def ecr_repository(self) -> ecr.Repository:
+        return self.__ecr_repository
 ```
 
 > **Note:** We are assigning the instance of our `ecr.Repository` to a readonly property so that it may be referenced by other stacks.
@@ -302,100 +341,125 @@ Now,  we have an image available in ECR that we can deploy to a service hosted o
 
 First, we will create a **Cluster** in **Amazon Elastic Container Service (ECS)**. This represents the cluster of “servers” that your service containers will be deployed to.  Servers is in "quotations" because you will be using **AWS Fargate**. Fargate allows you to specify that your containers be deployed to a cluster without having to actually provision or manage any servers yourself.
 
-Now, let's define our ECS instance.  But first, we need to install the CDK NPM packages for AWS ECS, doing so like below:
+Now, let's define our ECS instance.  But first, we need to install the CDK modules for AWS ECS, update your `setup.py` to include these packages within the `install_requires section`:
 
+
+````json
+    install_requires=[
+        "aws-cdk.core==1.29.0",
+        "aws-cdk.aws-cloudfront==1.29.0",
+        "aws-cdk.aws-iam==1.29.0",
+        "aws-cdk.aws-s3==1.29.0",
+        "aws-cdk.aws-s3-deployment==1.29.0",
+        "aws-cdk.aws-ec2==1.29.0",
+        "aws-cdk.aws-ecr==1.29.0",
+        "aws-cdk.aws-ecs==1.29.0",
+        "aws-cdk.aws-ecs-patterns==1.29.0"
+    ],
+````
+
+then run: 
 ```sh
-npm install --save-dev @aws-cdk/aws-ecs @aws-cdk/aws-ecs-patterns
+pip install -r requirements.txt
 ```
+from `~/environment/workshop/cdk`
 
-As before, let's create a new file within the `lib` folder, this time called `ecs-stack.ts`.  
+As before, let's create a new file within the `cdk` folder, this time called `ecs_stack.py`.  
 
 ```sh
-touch lib/ecs-stack.ts
+touch lib/ecs_stack.py
 ```
 
 Define the skeleton structure of a CDK Stack.
 
-```typescript
-import cdk = require('@aws-cdk/core');
+```python
+from aws_cdk import (
+    core
+)
 
-export class EcsStack extends cdk.Stack {
-  constructor(scope: cdk.Construct, id: string) {
-    super(scope, id);
+class EcsStack(core.Stack):
 
-    // The code that defines your stack goes here
-  }
-}
+    def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
+        super().__init__(scope, id, **kwargs)
 ```
 
+<!-- TODO describe named parameterst in Python -->
 This time, the stack we are creating depends on two previous stacks that we have created.  The recommended approach for importing dependencies and properties into a stack is via a properties construct.  Let's define that now.  
-
-Above your EcsStack definition, import the following modules:
-
-```typescript
-import ec2 = require('@aws-cdk/aws-ec2');
-import ecr = require('@aws-cdk/aws-ecr');
-```
-
-And define the following properties object above the definition of the EcsStack
-
-```typescript
-interface EcsStackProps extends cdk.StackProps {
-    vpc: ec2.Vpc,
-    ecrRepository: ecr.Repository
-}
-```
 
 Now change the constructor of your EcsStack to require your properties object.
 
-```typescript
-  constructor(scope: cdk.Construct, id: string, props: EcsStackProps) {
+```python
+from aws_cdk import (
+    core
+)
+
+class EcsStack(core.Stack):
+    def __init__(self, scope: core.Construct, id: str, vpc: ec2.Vpc, ecr_repository: ecr.Repository, **kwargs) -> None:
 ```
 
-Import the remaining AWS CDK modules that we will require within the ECS stack.
+Be sure to define two properties at the bottom of your class that expose the ecs_cluster and ecs_service for other stacks to utilise later in the workshop.
 
-```typescript
-import ecs = require("@aws-cdk/aws-ecs");
-import ecsPatterns = require("@aws-cdk/aws-ecs-patterns");
-import iam = require("@aws-cdk/aws-iam");
+```python
+    @property
+    def ecs_cluster(self) -> ecs.Cluster:
+        return self.__ecs_cluster
+
+    @property
+    def ecs_service(self) -> ecs_patterns.NetworkLoadBalancedFargateService:
+        return self.__ecs_service
 ```
 
-Be sure to define two properties at the top of your EcsStack that expose the ecsCluster and ecsService for other stacks to utilise later in the workshop.
+<!-- update the imports -->
+```python
+from aws_cdk import (
+    core,
+    aws_ecr as ecr,
+    aws_ec2 as ec2,
+    aws_ecs as ecs,
+    aws_ecs_patterns as ecs_patterns,
+    aws_iam as iam
+)
 
-```typescript
-export class EcsStack extends cdk.Stack {
-  public readonly ecsCluster: ecs.Cluster;
-  public readonly ecsService: ecsPatterns.NetworkLoadBalancedFargateService;
+class EcsStack(core.Stack):
 
-  constructor(scope: cdk.Construct, id: string, props: EcsStackProps) {
-    super(scope, id);
+    def __init__(self, scope: core.Construct, id: str, vpc: ec2.Vpc, ecr_repository: ecr.Repository, **kwargs) -> None:
+        super().__init__(scope, id, **kwargs)
 ```
 
-Now we define our ECS Cluster object.
+Now we define our ECS Cluster object within our constructor.
 
-```typescript
-this.ecsCluster = new ecs.Cluster(this, "Cluster", {
-  clusterName: "MythicalMysfits-Cluster",
-  vpc: props.vpc
-});
-this.ecsCluster.connections.allowFromAnyIpv4(ec2.Port.tcp(8080));
+```python
+        self.__ecs_cluster: ecs.Cluster = ecs.Cluster(
+            self,
+            "Cluster",
+            cluster_name="MythicalMysfits-Cluster",
+            vpc=vpc
+        )
+        self.__ecs_cluster.connections.allow_from_any_ipv4(ec2.Port.tcp(8080))
 ```
 
+<!-- update me -->
 Notice how we reference the VPC (`props.vpc`) defined in the `EcsStackProps`.  [AWS CDK](https://aws.amazon.com/cdk/) will automatically create a reference here between the CloudFormation objects.  Also notice that we assign the instance of the `ecs.Cluster` created to a local property so that it can be referenced by this and other stacks.
 
-```typescript
-this.ecsService = new ecsPatterns.NetworkLoadBalancedFargateService(this, "Service", {
-  cluster: this.ecsCluster,
-  desiredCount: 1,
-  publicLoadBalancer: true,
-  taskImageOptions: {
-    enableLogging: true,
-    containerName: "MythicalMysfits-Service",
-    containerPort: 8080,
-    image: ecs.ContainerImage.fromEcrRepository(props.ecrRepository),
-  }
-});
-this.ecsService.service.connections.allowFrom(ec2.Peer.ipv4(props.vpc.vpcCidrBlock),ec2.Port.tcp(8080));
+```python
+        self.__ecs_service = ecs_patterns.NetworkLoadBalancedFargateService(
+            self,
+            "Service",
+            cluster=self.__ecs_cluster,
+            desired_count=1,
+            public_load_balancer=True,
+            task_image_options=ecs_patterns.NetworkLoadBalancedTaskImageOptions(
+                enable_logging=True,
+                container_name="MythicalMysfits-Service",
+                container_port=8080,
+                image=ecs.ContainerImage.from_ecr_repository(ecr_repository)
+            )
+        )
+
+        self.__ecs_service.service.connections.allow_from(
+            ec2.Peer.ipv4(vpc.vpc_cidr_block),
+            ec2.Port.tcp(8080)
+        )
 ```
 
 Notice here the definition of container ports and the customisation of the EC2 SecurityGroups rules created by AWS CDK to limit permitted requests to the CIDR block of the VPC we created.
@@ -454,26 +518,31 @@ this.ecsService.service.taskDefinition.addToTaskRolePolicy(
 );
 ```
 
-Then, add the EcsStack to our CDK application definition in `bin/cdk.ts`, as we have done before.  When done, your `bin/cdk.ts` should look like this;
+Then, add the EcsStack to our CDK application definition in `app.py`, as we have done before.  When done, your `app.py` should look like this;
 
-```typescript
-#!/usr/bin/env node
+```python
+#!/usr/bin/env python3
 
-import cdk = require('@aws-cdk/core');
-import "source-map-support/register";
-import { WebApplicationStack } from "../lib/web-application-stack";
-import { NetworkStack } from "../lib/network-stack";
-import { EcrStack } from "../lib/ecr-stack";
-import { EcsStack } from "../lib/ecs-stack";
+from aws_cdk import core
 
-const app = new cdk.App();
-new WebApplicationStack(app, "MythicalMysfits-Website");
-const networkStack = new NetworkStack(app, "MythicalMysfits-Network");
-const ecrStack = new EcrStack(app, "MythicalMysfits-ECR");
-const ecsStack = new EcsStack(app, "MythicalMysfits-ECS", {
-    vpc: networkStack.vpc,
-    ecrRepository: ecrStack.ecrRepository
-});
+from cdk.web_application_stack import WebApplicationStack
+from cdk.network_stack import NetworkStack
+from cdk.ecr_stack import EcrStack
+from cdk.ecs_stack import EcsStack
+
+
+app = core.App()
+WebApplicationStack(app, "MythicalMysfits-Website")
+networkstack = NetworkStack(app, "MythicalMysfits-Network")
+ecrStack = EcrStack(app, "MythicalMysfits-ECR")
+ecsStack = EcsStack(
+    app, 
+    "MythicalMysfits-ECS",
+    ecr_repository=ecrStack.ecr_repository,
+    vpc=networkstack.vpc
+)
+
+app.synth()
 ```
 
 #### Creating a Service Linked Role for ECS

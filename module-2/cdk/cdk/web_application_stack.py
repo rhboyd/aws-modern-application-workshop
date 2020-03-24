@@ -6,7 +6,7 @@ from aws_cdk import (
     aws_s3_deployment as s3deploy
 )
 
-class CdkStack(core.Stack):
+class WebApplicationStack(core.Stack):
 
     def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
@@ -34,16 +34,13 @@ class CdkStack(core.Stack):
             sources=[s3deploy.Source.asset('../web')],
             destination_key_prefix= "web/",
             destination_bucket=bucket,
-            distribution
+            distribution=cdn,
+            retain_on_delete=False
         )
 
-
-# new s3deploy.BucketDeployment(this, "DeployWebsite", {
-#   sources: [
-#     s3deploy.Source.asset(webAppRoot)
-#   ],
-#   destinationKeyPrefix: "web/",
-#   destinationBucket: bucket,
-#   distribution: cdn,
-#   retainOnDelete: false
-# });
+        core.CfnOutput(
+            self,
+            "CloudFrontUrl",
+            description="The CloudFront distribution URL",
+            value="https://{}".format(cdn.domain_name)
+        )
